@@ -1,7 +1,6 @@
 # MCR
 
-These scripts run dask and will use all cores available, it is recommended that you run them on a server using a workload manager like slurm.
-
+These scripts use dask and will use all cores available, it is recommended that you run them on a server using a workload manager like slurm.
 
 Setting up a conda environment on server:
 >module load miniconda/3
@@ -27,5 +26,3 @@ Running multi-component "reaction" (MCR):
 
 Again for the full CLI:
 >python MCR.py -h
-
-Cheers
