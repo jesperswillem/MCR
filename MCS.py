@@ -12,8 +12,6 @@ from rdkit import Chem, SimDivFilters, DataStructs, rdBase
 from rdkit.Chem import SmilesMolSupplier, Fragments, SDWriter, AllChem, rdmolfiles, rdMolAlign, rdFMCS, rdchem, rdDistGeom, rdShapeHelpers
 from rdkit.Chem.EnumerateStereoisomers import EnumerateStereoisomers, StereoEnumerationOptions
 
-from settings import *
-
 def write_sd_file(mols, out_file):
     with open(out_file, 'w') as file:
         writer = SDWriter(file)
