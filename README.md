@@ -22,7 +22,7 @@ To view the command line interface (CLI):
 >python search.py -h
 
 Running multi-component "reaction" (MCR):
->python MCS.py "C([*:2])C1[C@H]\([*:1])NC(=O)NC=1C" -d path/to/smiles.smi -q "[CX3H1](=O)" "[CH2][CX3]([CH3])(=O)" -m 25
+>python MCS.py "C([*:2])C1[C@H]\([*:1])NC(=O)NC=1C" -d path/to/smiles.smi -q "[CX3H1]\(=O)" "[CH2]\[CX3]([CH3])(=O)" -m 25
 
 Here the order of the query arguments matter, they have to match wildcards in the scaffold (first argument).
 
