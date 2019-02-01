@@ -27,7 +27,7 @@ def write_smi_file(mols, out_file, start = 1):
     with open(out_file, 'w') as file:
         mols = filter(None, mols)
         for i, mol in enumerate(mols, start):
-            file.write(Chem.MolToSmiles(mol) + ' ' + str(i).zfill(4) + '\n' + " " + "test")
+            file.write(Chem.MolToSmiles(mol) + ' ' + str(i).zfill(4) + '\n')
 
 
 def create_images(mols, folder):
