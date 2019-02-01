@@ -82,6 +82,12 @@ def get_args():
                         nargs='*',
                         help="Queries for structures can be used as reactants, make sure these are in the right order.")
 
+    parser.add_argument("-e", "--enum_starting_point",
+                        dest="enum_starting_point",
+                        default=1,
+                        nargs='*',
+                        help="Queries for structures can be used as reactants, make sure these are in the right order.")
+
     options = parser.parse_args()
 
     if not options.database:
@@ -98,7 +104,6 @@ def get_args():
 
 def main():
     # Read in arguments
-
     rdBase.DisableLog('rdApp.error')
     args = get_args()
 
@@ -112,6 +117,7 @@ def main():
     text = db.read_text(smiles_database, blocksize =int(1e7))
     r_subs = []
     max_h_atoms = args.max_h_atoms
+    scaffold = args.scaffold
 
     for i, q in enumerate(args.queries):
         i += 1
@@ -132,11 +138,12 @@ def main():
 
     # Weld molecules
     print("Welding new mols...")
+
     mols = substitute(scaffold, r_subs)
     print("{} new mols generated, writing smiles to {}".format(len(mols), args.out_file))
 
     # Write result molecules to SD file
-    write_smi_file(mols, 'outfile_result_mols.smi', enum_starting_point)
+    write_smi_file(mols, 'outfile_result_mols.smi', args.enum_starting_point)
 
     if args.image_dir:
         print("writing images to {}".format(args.image_dir))
