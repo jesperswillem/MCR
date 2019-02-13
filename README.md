@@ -2,14 +2,14 @@
 
 These scripts use dask and will use all cores available, it is recommended that you run them on a server using a workload manager like slurm.
 
-Setting up a conda environment on server:
+Setting up a conda environment:
 >module load miniconda/3
 
 >conda create -c rdkit -n miniconda_rdkit rdkit dask matplotlib scikit-learn
 
 >source activate miniconda_rdkit
 
-Replace the module load command with whateve is applicable to your server. If the server runs conda 2 add python=3 to the conda create command, this code was written and tested for python 3 and might not run in python 2. 
+Replace the module load command with whatever is applicable to your server. If the server runs conda 2 add python=3 to the conda create command, this code was written and tested for python 3 and might not run in python 2. 
 
 Running a substructure search:
 >python search.py CC1CCC1CC=O -d path/to/smiles.smi -o ./output_file.smi
