@@ -1,31 +1,14 @@
-import os, shutil, gzip, sys, glob, argparse
+import os, argparse, sys
 import dask.bag as db
 
+from collections import defaultdict
 from dask.diagnostics import ProgressBar
-from gen_ligands import *
-from cluster_ligands import *
-
-from io import StringIO
-from operator import itemgetter
-
 from rdkit import Chem, SimDivFilters, DataStructs, rdBase
-from rdkit.Chem import SmilesMolSupplier, Fragments, SDWriter, AllChem, rdmolfiles, rdMolAlign, rdFMCS, rdchem, rdDistGeom, rdShapeHelpers
-from rdkit.Chem.EnumerateStereoisomers import EnumerateStereoisomers, StereoEnumerationOptions
+from rdkit.Chem.rdchem import EditableMol
 
-def write_sd_file(mols, out_file):
-    with open(out_file, 'w') as file:
-        writer = SDWriter(file)
-        for mol in mols:
-            if mol == None: continue
-            writer.write(Chem.MolToSmiles(mol))
-        writer.close()
+from shared import write_smi_file, create_images, get_smi_files
 
 
-def write_smi_file(mols, out_file, start = 1):
-    with open(out_file, 'w') as file:
-        mols = filter(None, mols)
-        for i, mol in enumerate(mols, start):
-            file.write(Chem.MolToSmiles(mol) + ' ' + str(i).zfill(4) + '\n')
 
 def filter_smiles(text, query_substruct_mol, max_h_atoms):
     mbag = text.map(lambda x: Chem.MolFromSmiles(x))
@@ -34,20 +17,69 @@ def filter_smiles(text, query_substruct_mol, max_h_atoms):
     with ProgressBar():
         return mbag.compute()
 
-def get_smi_files(directory):
-    if directory[-4:] == '.smi':
-        return [directory]
-    elif os.path.isdir(directory):
-        files = []
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                if file.endswith('.smi'):
-                    files.append(file)
-        if len(files):
-            return files
-    print("A database location needs to either be a .smi file or directory containing .smi files")
-    parser.print_help()
-    sys.exit(1)
+
+def weld_r_groups(input_mol):
+    # First pass loop over atoms and find the atoms with an AtomMapNum
+    join_dict = defaultdict(list)
+    for atom in input_mol.GetAtoms():
+        map_num = atom.GetAtomMapNum()
+        if map_num > 0:
+            join_dict[map_num].append(atom)
+
+    # Second pass, transfer the atom maps to the neighbor atoms
+    for idx, atom_list in join_dict.items():
+        if len(atom_list) == 2:
+            atm_1, atm_2 = atom_list
+            nbr_1 = [x.GetOtherAtom(atm_1) for x in atm_1.GetBonds()][0]
+            nbr_1.SetAtomMapNum(idx)
+            nbr_2 = [x.GetOtherAtom(atm_2) for x in atm_2.GetBonds()][0]
+            nbr_2.SetAtomMapNum(idx)
+
+    # Nuke all of the dummy atoms
+    new_mol = Chem.DeleteSubstructs(input_mol, Chem.MolFromSmarts('[#0]'))
+
+    # Third pass - arrange the atoms with AtomMapNum, these will be connected
+    bond_join_dict = defaultdict(list)
+    for atom in new_mol.GetAtoms():
+        map_num = atom.GetAtomMapNum()
+        if map_num > 0:
+            bond_join_dict[map_num].append(atom.GetIdx())
+
+    # Make an editable molecule and add bonds between atoms with correspoing AtomMapNum
+    em = EditableMol(new_mol)
+    for idx, atom_list in bond_join_dict.items():
+        if len(atom_list) == 2:
+            start_atm, end_atm = atom_list
+            em.AddBond(start_atm, end_atm,
+                       order=Chem.rdchem.BondType.SINGLE)
+
+    final_mol = em.GetMol()
+
+    # remove the AtomMapNum values
+    for atom in final_mol.GetAtoms():
+        atom.SetAtomMapNum(0)
+
+    final_mol = Chem.RemoveHs(final_mol)
+    return final_mol
+
+
+def substitute(compound, r_subs):
+    mod_mol = []
+    r=[[]]
+    for x in r_subs:
+        t = []
+        for y in x:
+            for i in r:
+                t.append(i+[y])
+        r = t
+    sub_sets = []
+    for i in t:
+        sub_sets.append(".".join(i))
+    for sub in sub_sets:
+        mol_to_weld = Chem.MolFromSmiles(compound + '.' + sub)
+        mod_mol.append(weld_r_groups(mol_to_weld))
+    return mod_mol
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -91,11 +123,11 @@ def get_args():
     options = parser.parse_args()
 
     if not options.database:
-        print("A database location must be given.")
+        print(">>> A database location must be given.")
         parser.print_help()
         sys.exit(1)
     elif not options.scaffold:
-        print("Scaffold structure is a required argument.")
+        print(">>> Scaffold structure is a required argument.")
         parser.print_help()
         sys.exit(1)
 
@@ -154,4 +186,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    print("main() finished running without problems")
+    print('\nMain() is done running.')

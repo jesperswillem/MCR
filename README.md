@@ -30,3 +30,5 @@ Here the order of the query arguments matter, they have to match wildcards in th
 
 Again for the full CLI:
 >python MCR.py -h
+
+TODO: add clustering and QSAR examples.

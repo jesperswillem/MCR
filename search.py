@@ -1,38 +1,16 @@
 import os, shutil, gzip, sys, glob, argparse
 import dask.bag as db
 from dask.diagnostics import ProgressBar
-from gen_ligands import *
-from cluster_ligands import *
 
 from io import StringIO
 from operator import itemgetter
 
 from rdkit import Chem, SimDivFilters, DataStructs
-from rdkit.Chem import SmilesMolSupplier, Fragments, SDWriter, AllChem, rdmolfiles, rdMolAlign, rdFMCS, rdchem, rdDistGeom, rdShapeHelpers
-from rdkit.Chem.EnumerateStereoisomers import EnumerateStereoisomers, StereoEnumerationOptions
 from rdkit.Chem.Fingerprints import FingerprintMols
 from rdkit import rdBase
 
+from shared import write_sd_file, write_smi_file, create_images
 
-def write_sd_file(mols, out_file):
-    with open(out_file, 'w') as file:
-        writer = SDWriter(file)
-        for mol in mols:
-            if mol == None: continue
-            writer.write(Chem.MolToSmiles(mol))
-        writer.close()
-
-
-def write_smi_file(mols, out_file, start = 1):
-    with open(out_file, 'w') as file:
-        mols = filter(None, mols)
-        for i, mol in enumerate(mols, start):
-            file.write(Chem.MolToSmiles(mol) + ' ' + str(i).zfill(4) + '\n')
-
-
-def create_images(mols, folder):
-    for i, mol in enumerate(mols):
-        Chem.Draw.MolToFile(mol, folder + "/norA_" + str(i) + ".png")
 
 def filter_smiles_sim(text, query_substruct_mol, max_h_atoms, cutoff):
     query_fp = FingerprintMols.FingerprintMol(query_substruct_mol)
@@ -42,6 +20,7 @@ def filter_smiles_sim(text, query_substruct_mol, max_h_atoms, cutoff):
     mbag = mbag.filter(lambda x: DataStructs.FingerprintSimilarity(query_fp, FingerprintMols.FingerprintMol(x)) >= cutoff)
     with ProgressBar():
         return mbag.compute()
+
 
 def filter_smiles_match(text, query_substruct_mol, max_h_atoms):
     mbag = text.map(lambda x: Chem.MolFromSmiles(x))
@@ -102,15 +81,16 @@ def get_args():
     options = parser.parse_args()
     
     if not options.database:
-        print("A database location must be given.")
+        print(">>> A database location must be given.")
         parser.print_help()
         sys.exit(1)
     elif not options.query:
-        print("No smarts structure to query given.")
+        print(">>> No smarts structure to query given.")
         parser.print_help()
         sys.exit(1)
     
     return options
+
 
 def main():
     rdBase.DisableLog('rdApp.error')
@@ -139,7 +119,6 @@ def main():
     write_smi_file(mols, args.out_file)
 
 
-
 if __name__ == "__main__":
     main()
-    print("main() finished running without problems")
+    print('\nMain() is done running.')
