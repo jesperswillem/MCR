@@ -36,7 +36,7 @@ def get_chembl_activies(db, targets):
     #setup factory so the rows are returned as named tuples.
     conn.row_factory = namedtuple_factory
     #load query for collecting bioactivity data.
-    with open('chembl_query.sql') as f:
+    with open('/home/jespers/software/MCR/chembl_query.sql', 'r') as f:
         query = f.read()
     #execute query for each target.
 
