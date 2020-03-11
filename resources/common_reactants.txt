@@ -1,0 +1,10 @@
+Name	smarts	description
+protonated_amine	[$([NH2][CX4]),$([NH]([CX4])[CX4]),$([NX3]([CX4])([CX4])[CX4])]	Amines likely to be protonated at physiological pH
+ether	[OD2]([#6])[#6]	Any ether
+reactive_halides	"[Br,Cl,I][CX4;CH,CH2]"	Reactive alklyl halides
+acyl_halide	[CX3](=[OX1])[F,Cl,Br,I] 	Any acyl halide
+ester	[#6][CX3](=O)[OX2H0][#6]	Any ester, also hits anhydrides
+carbon_acid	[CX3](=O)[OX2H1] 	Hits protonated carbonic acid.
+aldehyde	[CX3H1](=O)[#6] 	Any aldehyde
+ketone	[#6][CX3](=O)[#6] 	Any ketone
+formamide	[CX3H1](=O)[#7]	Any formamide

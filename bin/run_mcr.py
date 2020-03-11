@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+""" Command line script of that comes with this library, takes an input file and outputs a query, reactants resulting of a
+MCR or both.
+"""
+import argparse
+import configparser
+import copy
+import sys
+from pathlib import Path
+
+import dask
+from dask.diagnostics import ProgressBar
+from rdkit import RDLogger, rdBase, Chem
+
+from MCR import helpers, chem_functions, core
+
+def settings_print(x):
+    """Prints dict x in a readable format.
+
+    Parameters
+    ----------
+    x: dict
+
+    Returns
+    -------
+    """
+    for k, v in x.items():
+        padding = 55 - len(str(k)) - len(str(v))
+        print(f"{k}{padding*' '}{v}")
+
+
+def startup_report(settings, query_parameters, MCR_parameters):
+    """Takes in the processed data from the input file and prints the settings that will be used.
+
+    Parameters
+    ----------
+    settings: dict
+    query_parameters: list[dict]
+    MCR_parameters: dict
+
+    Returns
+    -------
+    """
+    print("---------Used-settings---------\n")
+    settings_print(settings)
+
+    for i, parameters in enumerate(query_parameters):
+        print(f"\nParameters for reactant {i+1}:")
+        settings_print(parameters)
+
+    if MCR_parameters['perform_mcr']:
+        print("\nSettings for multi-component reaction:")
+
+        settings_print(MCR_parameters)
+
+    print("\n------------------------------\n")
+
+
+def parse_input():
+    """Function that reads in the comment line arguments, if a input file is given it will parse the input file and
+    return MCR/query parameters.
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    settings: dict
+    query_parameters: list(dict, ..., m, n)
+    MCR_parameters: dict
+    """
+
+    # Parse the command line input to get the input file
+    parser = argparse.ArgumentParser()
+    parser.add_argument("input_file",
+                        help="Path to input file giving instructions for queries and/or MCR reaction.")
+    options = parser.parse_args()
+
+    # Make sure an input file was parsed
+    if not options.input_file:
+        print(">>> An input file must be specified.")
+        parser.print_help()
+        sys.exit(1)
+
+    # Process config file and construct dictionaries used to construct pipeline
+    config = configparser.ConfigParser()
+    config.read(options.input_file)
+    with open(options.input_file) as f:
+        config.read(f)
+
+    # Create settings dictionary with standard settings.
+    settings = {
+        "num_processes": 1,
+        "partition_size": 1e6,
+        "reactant_db": None,
+        "log_file": "MCR.log",
+        "output_folder": None
+    }
+
+    if config.has_section("general"):
+        for option in config["general"]:
+            if not option in settings:
+                raise KeyError(f"Invalid option {option} in general section.")
+            settings[option] = core.parse_input_field(config["general"][option])
+
+
+    # Create new_reactant dictionary with default settings
+    new_reactant_defaults = {
+        "from_file": None,
+        "reacting_group": None,
+        "include_smarts": None,
+        "exclude_smarts": None,
+        "max_heavy_ratoms": 10,
+        "wash_molecules": True,
+        "keep_largest_fragment": False
+    }
+
+    reactants = []
+    for i in range(1, 10):
+        j = "reactant" + str(i).zfill(2)
+        new_reactant = copy.deepcopy(new_reactant_defaults)
+        if config.has_section(j):
+            for option in config[j]:
+                if not option in new_reactant:
+                    raise KeyError(f"Invalid option {option} in {j} section.")
+                new_reactant[option] = core.parse_input_field(config[j][option])
+            try:
+                if new_reactant["reacting_group"] != None:
+                    reactants.append(new_reactant)
+                else:
+                    raise RuntimeError
+            except:
+                raise ValueError(f"No smarts defined in {j}")
+        else:
+            break
+
+    # Create new_reactant dictionary with default settings
+    MCR_parameters = {
+        "perform_mcr": False,
+        "scaffold": None,
+        "subset_method": None,
+        "subset_size": 1e4,
+        "training_sample": 1e5,
+        "max_heavy_ratoms": 30,
+        "remove_pains": False,
+        "remove_non_lipinski": False,
+    }
+
+    if config.has_section("MCR"):
+        for option in config["MCR"]:
+            if not option in MCR_parameters:
+                raise KeyError(f"Invalid option {option} in MCR section.")
+            MCR_parameters[option] = core.parse_input_field(config["MCR"][option])
+        if MCR_parameters["scaffold"]:
+            MCR_parameters["perform_mcr"] = True
+
+    return settings, reactants, MCR_parameters
+
+
+def write_config(path, settings, query_parameters, MCR_parameters):
+    config = configparser.ConfigParser()
+
+    config.add_section('general')
+    for key, value in settings.items():
+        config.set("general", key, str(value))
+
+    for i,query in enumerate(query_parameters):
+        section = f'reactant{str(i).zfill(2)}'
+        config.add_section(section)
+        for key, value in query.items():
+            config.set(section, key, str(value))
+
+    config.add_section('MCR')
+    for key, value in MCR_parameters.items():
+        config.set("MCR", key, str(value))
+
+    with open(path, 'w') as f:
+        config.write(f)
+
+
+def main():
+    """Main function for running from the command line with an input file.
+    """
+    RDLogger.DisableLog('rdApp.info')
+    rdBase.DisableLog('rdApp.error')
+
+    # Read input file into dictionaries used later.
+    settings, query_parameters, MCR_parameters = parse_input()
+    startup_report(settings, query_parameters, MCR_parameters)
+
+    # Make sure we have a output directory to write to.
+    if not settings['output_folder']:
+        print('No output directory defined for MCR!')
+        sys.exit(1)
+    output_path = settings['output_folder']
+    if output_path[-1] != "/":
+        output_path += "/"
+
+    # Backup existing folder with the same name if needed.
+    backup = helpers.backup_dir(output_path[:-1])
+    if backup:
+        print(f"Backed up existing {output_path[:-1]} folder to {backup}\n")
+    Path(output_path).mkdir(parents=True, exist_ok=True)
+    output_path = str(Path(output_path).absolute())
+
+    if output_path[-1] != "/":
+        output_path += "/"
+
+    # Write out used input file.
+    write_config(output_path + "used_input_file.inp", settings, query_parameters, MCR_parameters)
+
+    # Execute and write out queries
+    reactants_lists = core.execute_queries(settings, query_parameters, output_path)
+
+    # Check if MCR is requested
+    if MCR_parameters['perform_mcr']:
+        # TODO make some nice and tested functions out of the clustering block and offer alternatives to kmeans.
+        mcr_result, expected_total = core.execute_mcr(reactants_lists, query_parameters, MCR_parameters)
+
+
+        # Perform clustering if requested
+        if MCR_parameters['subset_method'] == "k-means":
+            # Create training set to find for KMeans
+            sample_prob = MCR_parameters["training_sample"]/expected_total
+            centroids, training_sample = core.make_kmeans_clusters(mcr_result, sample_prob)
+
+            # Assign clusters
+            train_desc_bag = training_sample.map(lambda x: [chem_functions.generate_fingerprints(x), Chem.MolToSmiles(x)])
+            train_assigned_node = train_desc_bag.map(lambda x, centers=centroids: [helpers.match_node(x[0], centers)] + [x[1:]])
+
+            # Assign clusters
+            desc_bag = mcr_result.map(lambda x: [chem_functions.generate_fingerprints(x[0])] + x[1:])
+            prediction = desc_bag.map(lambda x, centers=centroids: [helpers.closest_node(x[0], centers)] + [x[1:]])
+
+            # Compute by creating delayed cluster writers for each partition
+            b = prediction.to_delayed(optimize_graph=True)
+
+            output = []
+            for i, c in enumerate(b):
+                output.append(dask.delayed(lambda x, y=copy.deepcopy(i): helpers.cluster_writer(output_path + "MCR", y, x))(c))
+
+            print('\nAssigning labels and writing full set to disk...')
+            with ProgressBar():
+                dask.compute(*output)
+
+            # Combine the cluster files from different partitions into one file per cluster and enumerate the compounds
+            # in each cluster
+            print('\nCombining partitions into single file per cluster...')
+            helpers.combine_files(output_path + "MCR")
+
+            # Write out a inp file used to reconstruct the clusters from .txt.gz files.
+            cluster_config = configparser.ConfigParser()
+            cluster_config.add_section('cluster_info')
+
+            cluster_config.set('cluster_info', 'num_reactant_files', str(len(reactants_lists)))
+            for i, query in enumerate(query_parameters):
+                cluster_config.set('cluster_info', f'file{i}', f"./reactant{str(i).zfill(2)}.smi")
+                cluster_config.set('cluster_info', f'reacting_group{i}', query['reacting_group'])
+
+            cluster_config.set('cluster_info', 'scaffold', MCR_parameters['scaffold'])
+
+            with open(f'{output_path}cluster.inp', 'w') as f:
+                cluster_config.write(f)
+
+        else:
+            print('Subset method not supported.')
+            sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

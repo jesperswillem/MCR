@@ -1,0 +1,9 @@
+canonical_smiles	index
+CC(=O)CC=O	0
+CCCC(O)CC(C)=O	1
+CCC(=O)CC(C)=O	2
+CC(=O)CCCBr	3
+CCCC(=O)CC(C)=O	4
+CC(=O)CC(=O)O	5
+CC(=O)CCCC(C)(C)O	6
+CC(=O)CC(O)C(Cl)(Cl)Cl	7

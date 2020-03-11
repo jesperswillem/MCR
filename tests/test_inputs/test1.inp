@@ -1,0 +1,20 @@
+#input file defining the biginelli reaction
+[general]
+num_processes = 4
+reactant_db = ../tests/test_data/test_db.smi ! Set to path relevant to your system.
+output_folder = ../tests/delete_testdir_1
+
+
+[reactant01]
+reacting_group = [CX3H]=O
+include_smarts =
+exclude_smarts = [CX3H](=O)[N;n], c1ccccc1
+max_heavy_Ratoms = 10
+wash_molecules = true
+
+[reactant02]
+reacting_group = [CX3H]=O
+include_smarts =
+exclude_smarts = [CX3H](=O)[N;n], c1ccccc1
+max_heavy_Ratoms = 10
+wash_molecules = true
