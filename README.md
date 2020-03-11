@@ -19,38 +19,42 @@ conda create -c rdkit -n MCR_env rdkit
 Install required packages
 ```
 source activate MCR_env
-conda install -c conda-forge dask dask-ml numpy 
+conda install dask dask-ml numpy 
 ```
 
-Clone this repository
+Clone this repository or the devel branch
 ```
+# master
 git clone https://github.com/jesperswillem/MCR.git
+# devel
+git clone -b devel --single-branch https://github.com/jesperswillem/MCR.git 
 ```
 
-And finally run the setup script
+And then install by running the setup script
 ```
 cd MCR
 python setup.py install
 ```
-
-#### Testing installation
-
-The following command line tools shoud be added to your path after installation
+The following command line tools should now have been added to your path
 ```
 construct_clusters.py
 mcr_plot.py
 run_mcr.py
 ``` 
 
+
+#### Testing installation
+
 To run unittests
 ```
-python -m unittest tests
+cd MCR/tests
+python -m unittest
 ``` 
 <br>
 More to follow.
 
-#### Authors
-Florian van der Ent<br>
-Willem Jespers <br>
-Hugo Gutierrez de Teran
 
+#### Authors
+Willem Jespers <br>
+Florian van der Ent<br>
+Hugo Gutierrez de Teran
