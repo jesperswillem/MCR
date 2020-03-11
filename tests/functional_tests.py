@@ -31,7 +31,9 @@ class TestFunction(TestCase):
     @mock.patch('argparse.ArgumentParser.parse_args',
                 return_value=argparse.Namespace(input_file="test_inputs/test2.inp"))
     def test_main2(self, mock_args):
+        print('hallo')
         bin.run_mcr.main()
+        print("check")
 
     @mock.patch('argparse.ArgumentParser.parse_args',
                 return_value=argparse.Namespace(input_file="test_inputs/test3.inp"))
