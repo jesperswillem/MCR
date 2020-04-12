@@ -64,7 +64,7 @@ def read_inputs():
 
 
 def main():
-    # Silence warnings for headers.
+    # Suppress warnings for headers.
     RDLogger.DisableLog('rdApp.info')
     rdBase.DisableLog('rdApp.error')
 

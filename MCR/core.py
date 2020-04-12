@@ -24,6 +24,7 @@ import dask.array as da
 from dask.diagnostics import ProgressBar
 import numpy as np
 from rdkit import Chem
+from rdkit.Chem import AllChem
 
 
 def parse_input_field(input):
@@ -175,6 +176,9 @@ def execute_queries(settings, query_parameters, output_path):
         if query["from_file"]:
             bag = db.read_text(query['from_file'])
             bag = bag.map(lambda x: Chem.MolFromSmiles(x)).remove(lambda x: x is None)
+        elif query["from_sequence"]:
+            bag = db.from_sequence(query["from_sequence"])
+            bag = bag.map(lambda x: Chem.MolFromSmiles(x)).remove(lambda x: x is None)
         else:
             bag = construct_query(query, input_bag)
         reactant_bags.append(bag)
@@ -200,17 +204,14 @@ def execute_queries(settings, query_parameters, output_path):
     return reactants_lists
 
 
-def execute_mcr(reactants_lists, query_parameters, mcr_parameters):
+def execute_mcr(reactants_lists, reacting_groups, scaffolds):
     # TOPOLISH: test and doc
-    for i, query in enumerate(query_parameters):
-        if query['reacting_group']:
-            reacting_group = Chem.MolFromSmarts(query["reacting_group"])
-            reactants_lists[i] = [
-                [chem_functions.substitute_reactive_group(reactant[0], reacting_group, i + 1)[0], reactant[1]] for
-                reactant in reactants_lists[i]]
-        else:
-            raise IOError(
-                f'Reacting group not defined for reactant {i}, This is required if you want to perform a MCR.')
+    # TOPOLISH: rdkit reaction version
+    for i, reacting_group in enumerate(reacting_groups):
+        reacting_group = Chem.MolFromSmarts(reacting_group)
+        reactants_lists[i] = [
+            [chem_functions.substitute_reactive_group(reactant[0], reacting_group, i + 1)[0], reactant[1]] for
+            reactant in reactants_lists[i]]
 
     expected_total = 1
     for k in reactants_lists:
@@ -228,17 +229,55 @@ def execute_mcr(reactants_lists, query_parameters, mcr_parameters):
     reactant_product = reactant_product.map(
         lambda x: [[Chem.MolToSmiles(i[0]), i[1]] for i in x])
 
-    scaffold = mcr_parameters['scaffold']
+    scaffold = scaffolds[0]
 
     reactant_product = reactant_product.map(
         lambda x, y=copy.deepcopy(scaffold): chem_functions.join_fragments(x, y))
 
     mcr_result_bag = reactant_product.map(lambda x: [chem_functions.weld_r_groups(x[0])] + x[1:])
 
-    # TODO: max heavy atoms.
-    # TODO: Lipinski
-    # TODO: Lipinski subcomponents
-    # TODO: pains filters.
+    return mcr_result_bag, expected_total
+
+
+def execute_mcr_rxn(reactants_lists, reacting_groups, scaffolds):
+    # TOPOLISH: test and doc
+
+    # predict number of compound to select a sample later on.
+    expected_total = 1
+    for k in reactants_lists:
+        num_reactants = len(k)
+        if num_reactants == 0:
+            raise Exception('Empty reactants file')
+        expected_total *= len(k)
+
+    #create dask bags
+    reactants_lists = [db.from_sequence(k, partition_size=int(10)) for k in reactants_lists]
+
+    # Make a single product bag of the form [['smiles', reactant01_index, reactant02_index], [...], ...]
+    reactant_product = reactants_lists.pop(0)
+    for p in reactants_lists:
+        reactant_product = reactant_product.product(p)
+    reactant_product = reactant_product.map(helpers.flatten_tuple)
+
+    # The product come in as [[a, id_a], [b, id_b]] my_map is used to make [[a, b], [id_a, id_b]]
+    # So later on we can get [product_a_b, [id_a, id_b]]
+    def my_map(x):
+        a = []
+        b = []
+        for y in x:
+            a.append(y[0])
+            b.append(y[1])
+        return a, b
+
+    # Join reactants by dots to produce a rxn reactant later.
+    reactants_groups = '.'.join(reacting_groups)
+
+    # Loop over scaffolds and perform reactions #TODO join products of multiple scaffolds
+    for scaffold in scaffolds:
+        rxn_reaction = f"{reactants_groups}>>{scaffold}"
+        reactant_product = reactant_product.map(my_map)
+        mcr_result_bag = reactant_product.map_partitions(lambda x, rxn=rxn_reaction: chem_functions.apply_rxn(x, rxn))
+    mcr_result_bag = mcr_result_bag.flatten()
 
     return mcr_result_bag, expected_total
 
@@ -264,8 +303,9 @@ def molbag_to_featurearray(bag):
 
 
 def make_kmeans_clusters(mol_bag, sample_prob):
-    # TODO: add test/doc
+    # TODO: add test/doc culling empty partitions twice now, also happens in molbag to featurearray.
     training_sample = mol_bag.random_sample(sample_prob).map(lambda x: x[0])
+
     # Culling empty partitions because they break the generate_fingerprint_iter function.
     training_sample = cull_empty_partitions(training_sample)
     features = molbag_to_featurearray(training_sample).persist()
@@ -277,6 +317,68 @@ def make_kmeans_clusters(mol_bag, sample_prob):
     centroids = model.cluster_centers_
 
     return centroids, training_sample
+
+
+def construct_cluster_rxn(cluster_file, scaffold, reactant_data):
+    """recreates a cluster from the original data if that cluster has been created using rxn.
+
+    Parameters
+    ----------
+    cluster_file: str
+    scaffold: str
+    reactant_data: list(list)
+
+    Returns
+    -------
+    cluster: list(tuple)
+    """
+    # Load_reactants and reacting groups
+    reacting_groups = []
+    reactants = []
+    for reacting_group in reactant_data:
+
+        reacting_groups.append(reacting_group[1])
+        reactant = []
+        with open(reacting_group[0], 'r') as f:
+            lines = f.readlines()
+            compounds = [line.strip('\n').split('\t') for line in lines if 'canonical_smiles' not in line]
+            for compound in compounds:
+                mol = Chem.MolFromSmiles(compound[0])
+                if not mol:
+                    continue
+                reactant.append(mol)
+        reactants.append(reactant)
+
+    # Unzipping cluster files and constructing list from lines
+    with gzip.open(cluster_file, 'rt') as f:
+        lines = f.readlines()
+
+    mols_to_rebuild = [line.strip('\n').split('\t') for line in lines]
+
+    # Create rdkit reaction from smart
+    rxn_reaction = f"{'.'.join(reacting_groups)}>>{scaffold}"
+    reaction = AllChem.ReactionFromSmarts(rxn_reaction)
+
+    # Perform reaction and cleaup products.
+    cluster = []
+    for mol_to_rebuild in mols_to_rebuild:
+        # Note to self: since I stored python lists as string I use eval to recreate lists. In other software this might
+        # be a major security risk.
+        building_block_indices, compound_index = mol_to_rebuild
+        building_block_indices = eval(building_block_indices)
+        building_blocks = [reactants[index][block] for index, block in enumerate(building_block_indices)]
+        unfiltered_products = reaction.RunReactants(building_blocks)
+        found_smiles = set()
+        for product in unfiltered_products:
+            product = product[0]
+            smiles = Chem.MolToSmiles(product)
+            if not smiles in found_smiles:
+                # Chem.GetSSSR(product)
+                Chem.SanitizeMol(product)
+                cluster.append((product, compound_index, building_block_indices))
+                found_smiles.add(smiles)
+
+    return cluster
 
 
 def construct_cluster(cluster_file, scaffold, reactants):

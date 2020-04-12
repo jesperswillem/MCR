@@ -1,0 +1,31 @@
+# input file single step biginelli reaction.
+[general]
+num_processes = 16
+partition_size = 2.5MB
+reactant_db = /Users/florian/csb/databases/emolecules/2018-09/emol_1000000.smi
+ !reactant_db = /Users/florian/csb/databases/emolecules/2018-09/emol_1000000.smi ! Set to path relevant to your system.
+output_folder = examples/single_step_biginelli_clustered
+
+[reactant01]
+reacting_group = [*:1][CX3H]=O
+exclude_smarts = [CX3H](=O)[N;n], [Br;I], [CX2]#[NX1]
+max_heavy_Ratoms = 15
+wash_molecules = true
+
+[reactant02]
+reacting_group = [*:2][CH2][CX3]([CH3])(=O)
+exclude_smarts = [Br;I], [CX2]#[NX1], [S;O]=[C]([NH2])[NH2], [*:1][CX3H]=O
+max_heavy_Ratoms = 10
+wash_molecules = true
+
+[reactant03]
+reacting_group = [C:3]([NH2])[NH2]
+from_sequence = N(C(N([H])[H])=[S])([H])[H], N(C(N([H])[H])=[O])([H])[H]
+max_heavy_Ratoms = 10
+wash_molecules = true
+
+[MCR]
+scaffold = [*:2]C1[C@H]([*:1])N[C:3]NC=1C
+subset_method = k-means
+subset_size = 100000
+training_sample = 250000

@@ -6,13 +6,13 @@ reactant_db = ../tests/test_data/test_db.smi !/Users/florian/csb/databases/emole
 output_folder = ../tests/delete_testdir_1
 
 [reactant01]
-reacting_group = [CX3H]=O
+reacting_group = [*:1][CX3H]=O
 exclude_smarts = [CX3H](=O)[N;n]
 max_heavy_Ratoms = 15
 wash_molecules = true
 
 [reactant02]
-reacting_group = [CH2][CX3]([CH3])(=O)
+reacting_group = [*:2][CH2][CX3]([CH3])(=O)
 max_heavy_Ratoms = 10
 wash_molecules = true
 

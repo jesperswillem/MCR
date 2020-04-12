@@ -6,14 +6,14 @@ output_folder = ../tests/delete_testdir_1
 
 
 [reactant01]
-reacting_group = [CX3H]=O
+reacting_group = [*:1][CX3H]=O
 include_smarts =
 exclude_smarts = [CX3H](=O)[N;n], c1ccccc1
 max_heavy_Ratoms = 10
 wash_molecules = true
 
 [reactant02]
-reacting_group = [CX3H]=O
+reacting_group = [*:2][CX3H]=O
 include_smarts =
 exclude_smarts = [CX3H](=O)[N;n], c1ccccc1
 max_heavy_Ratoms = 10

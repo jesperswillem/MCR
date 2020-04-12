@@ -218,6 +218,26 @@ def generate_fingerprints_iter(mol_iter, nBits=512):
     return np.stack(np_fps)
 
 
+def generate_fingerprints_iter_debug(mol_iter, nBits=512):
+    fps = []
+    for mol in mol_iter:
+        try:
+            fps.append(AllChem.GetMorganFingerprintAsBitVect(mol, 4, nBits=nBits))
+        except:
+            print(Chem.MolToSmiles(mol))
+            Chem.GetSymmSSSR(mol)
+            fps.append(AllChem.GetMorganFingerprintAsBitVect(mol, 4, nBits=nBits))
+    try:
+        np_fps = []
+        for fp in fps:
+            arr = np.zeros((1,))
+            DataStructs.ConvertToNumpyArray(fp, arr)
+            np_fps.append(arr)
+        return np.stack(np_fps)
+    except:
+        return []
+
+
 def generate_fingerprints(mol):
     fp = AllChem.GetMorganFingerprintAsBitVect(mol, 4, nBits=512)
     arr = np.zeros((1,))
@@ -225,9 +245,58 @@ def generate_fingerprints(mol):
     return arr
 
 
+def apply_rxn(reactants, rxn):
+    """takes an rxn reaction string and a list of lists of reactants(rdkit mol objects) and returns a list of products.
+
+    Parameters
+    ----------
+    reactans: list(str)
+    rxn: str
+
+    Returns
+    -------
+    reaction: list(list)
+    """
+    reaction = AllChem.ReactionFromSmarts(rxn)
+    results = []
+    for reactant in reactants:
+        unfiltered_products = reaction.RunReactants(reactant[0],)
+
+        found_smiles = set()
+        products = []
+        for product in unfiltered_products:
+            product = product[0]
+            smiles = Chem.MolToSmiles(product)
+            if not smiles in found_smiles:
+                # Chem.GetSSSR(product)
+                Chem.SanitizeMol(product)
+                products.append(product)
+                found_smiles.add(smiles)
+
+        results.append([(product, reactant[1]) for product in products])
+    return results
+
+
+def create_reaction(scaffold, *reactants):
+    """Creates an rdkit reaction from a product scaffold and list of reactant smarts.
+
+    Parameters
+    ----------
+    scaffold: str
+    reactans: list(str)
+
+    Returns
+    -------
+    reaction: rdkit.reaction
+    """
+    reactants = '.'.join(reactants)
+    reaction = f"{reactants}>>{scaffold}"
+    return AllChem.ReactionFromSmarts(reaction,)
+
+
 def weld_r_groups(mol):
     """Accepts `mol` rdkit molecule of a scaffold and with numbered wildcards and fragments with corresponding
-    wildcards and returns a fused molecule. Based on code posted Patrick Walters on the RDkit forums.
+    wildcards and returns a fused molecule. Based on code posted by Patrick Walters on the RDkit forums.
 
     Parameters
     ----------

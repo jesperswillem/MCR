@@ -2,8 +2,6 @@ import argparse
 from unittest import TestCase
 from unittest import mock  # python 3.3+
 
-import bin.run_mcr
-
 class TestIntegration(TestCase):
     def tearDown(self) -> None:
         import glob, shutil
@@ -28,7 +26,7 @@ class TestIntegration(TestCase):
         rdBase.DisableLog('rdApp.error')
         RDLogger.DisableLog('rdApp.info')
 
-        bag = db.read_text("/Users/florian/Documents/uppMCR/tests/test_data/test_db.smi", blocksize=16e6)
+        bag = db.read_text("../tests/test_data/test_db.smi", blocksize=16e6)
         bag = bag.map(lambda x: Chem.MolFromSmiles(x)).filter(lambda x: x is not None)
         bag = bag.map(chem_functions.remove_salts_mol)
         bag = bag.map(chem_functions.decharge_mol)
@@ -49,6 +47,4 @@ class TestIntegration(TestCase):
 
         with self.subTest(msg="Join and weld"):
             self.assertEqual(result_smiles, 'CC1=C(CC=O)[C@@H](C(C)CC(C)(C)C)NC(=O)N1')
-
-# TOPOLISH: might need more intergration testing.
 

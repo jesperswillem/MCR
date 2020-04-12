@@ -99,7 +99,7 @@ def parse_input():
 
     if config.has_section("general"):
         for option in config["general"]:
-            if not option in settings:
+            if option not in settings:
                 raise KeyError(f"Invalid option {option} in general section.")
             settings[option] = core.parse_input_field(config["general"][option])
 
@@ -107,6 +107,7 @@ def parse_input():
     # Create new_reactant dictionary with default settings
     new_reactant_defaults = {
         "from_file": None,
+        "from_sequence": None,
         "reacting_group": None,
         "include_smarts": None,
         "exclude_smarts": None,
@@ -152,12 +153,27 @@ def parse_input():
                 raise KeyError(f"Invalid option {option} in MCR section.")
             MCR_parameters[option] = core.parse_input_field(config["MCR"][option])
         if MCR_parameters["scaffold"]:
+            if type(MCR_parameters["scaffold"]) == str:
+                MCR_parameters["scaffold"] = [MCR_parameters["scaffold"]]
             MCR_parameters["perform_mcr"] = True
 
     return settings, reactants, MCR_parameters
 
 
 def write_config(path, settings, query_parameters, MCR_parameters):
+    """Writes out settings dict to .inp file at given path.
+
+    Parameters
+    ----------
+    path: str
+    settings: dict
+    query_parameters: dict
+    MCR_parameters: dict
+
+    Returns
+    -------
+    """
+
     config = configparser.ConfigParser()
 
     config.add_section('general')
@@ -178,9 +194,21 @@ def write_config(path, settings, query_parameters, MCR_parameters):
         config.write(f)
 
 
+def write_products(bag, path, file_name):
+    """Write out a bag of mols with indices of reactants to file
+    """
+    bag = bag.map(lambda product: Chem.MolToSmiles(product[0]) + '\t' + '\t'.join(map(str, product[1])) + '\n')
+    # bag.to_textfiles(path + file_name) # Didn't use this because it splits the file (it's faster though)
+    with ProgressBar():
+        with open(path + file_name, 'w') as f:
+            for product in bag.compute():
+                f.write(product)
+
+
 def main():
     """Main function for running from the command line with an input file.
     """
+
     RDLogger.DisableLog('rdApp.info')
     rdBase.DisableLog('rdApp.error')
 
@@ -214,34 +242,47 @@ def main():
 
     # Check if MCR is requested
     if MCR_parameters['perform_mcr']:
-        # TODO make some nice and tested functions out of the clustering block and offer alternatives to kmeans.
-        mcr_result, expected_total = core.execute_mcr(reactants_lists, query_parameters, MCR_parameters)
+        reacting_groups = [query['reacting_group'] for query in query_parameters]
+        # Old manual reaction function
+        # mcr_result, expected_total = core.execute_mcr(reactants_lists, reacting_groups, MCR_parameters['scaffold'])
 
+        # # rdkit implementation
+        mcr_result, expected_total = core.execute_mcr_rxn(reactants_lists, reacting_groups, MCR_parameters['scaffold'])
+
+        # TODO: max heavy atoms.
+
+        # TODO: Lipinski
+
+        # TODO: Lipinski subcomponents
+
+        # TODO: pains filters.
 
         # Perform clustering if requested
+        print(MCR_parameters['subset_method'])
         if MCR_parameters['subset_method'] == "k-means":
             # Create training set to find for KMeans
             sample_prob = MCR_parameters["training_sample"]/expected_total
             centroids, training_sample = core.make_kmeans_clusters(mcr_result, sample_prob)
 
-            # Assign clusters
-            train_desc_bag = training_sample.map(lambda x: [chem_functions.generate_fingerprints(x), Chem.MolToSmiles(x)])
-            train_assigned_node = train_desc_bag.map(lambda x, centers=centroids: [helpers.match_node(x[0], centers)] + [x[1:]])
+            # Assign clusters training sample, kind of useless the centroids are not real points.
+            # train_desc_bag = training_sample.map(lambda x: [chem_functions.generate_fingerprints(x), Chem.MolToSmiles(x)])
+            # train_assigned_node = train_desc_bag.map(lambda x, centers=centroids: [helpers.match_node(x[0], centers)] + [x[1:]])
 
             # Assign clusters
-            desc_bag = mcr_result.map(lambda x: [chem_functions.generate_fingerprints(x[0])] + x[1:])
+            desc_bag = mcr_result.map(lambda x: [chem_functions.generate_fingerprints(x[0])] + list(x[1:]))
             prediction = desc_bag.map(lambda x, centers=centroids: [helpers.closest_node(x[0], centers)] + [x[1:]])
 
             # Compute by creating delayed cluster writers for each partition
-            b = prediction.to_delayed(optimize_graph=True)
+            delayed_partitions = prediction.to_delayed(optimize_graph=True)
 
-            output = []
-            for i, c in enumerate(b):
-                output.append(dask.delayed(lambda x, y=copy.deepcopy(i): helpers.cluster_writer(output_path + "MCR", y, x))(c))
+            writers = []
+            for partition_index, partition in enumerate(delayed_partitions):
+                writers.append(dask.delayed(lambda x, y=copy.deepcopy(partition_index): helpers.cluster_writer(
+                    output_path + "MCR", y, x))(partition))
 
             print('\nAssigning labels and writing full set to disk...')
             with ProgressBar():
-                dask.compute(*output)
+                dask.compute(*writers)
 
             # Combine the cluster files from different partitions into one file per cluster and enumerate the compounds
             # in each cluster
@@ -253,18 +294,22 @@ def main():
             cluster_config.add_section('cluster_info')
 
             cluster_config.set('cluster_info', 'num_reactant_files', str(len(reactants_lists)))
-            for i, query in enumerate(query_parameters):
-                cluster_config.set('cluster_info', f'file{i}', f"./reactant{str(i).zfill(2)}.smi")
-                cluster_config.set('cluster_info', f'reacting_group{i}', query['reacting_group'])
+            for partition_index, query in enumerate(query_parameters):
+                cluster_config.set('cluster_info', f'file{partition_index}', f"./reactant{str(partition_index).zfill(2)}.smi")
+                cluster_config.set('cluster_info', f'reacting_group{partition_index}', query['reacting_group'])
 
-            cluster_config.set('cluster_info', 'scaffold', MCR_parameters['scaffold'])
+            cluster_config.set('cluster_info', 'scaffold', ', '.join(MCR_parameters['scaffold']))
+
+            helpers.store_np_matrix(centroids, f'{output_path}centroids.txt')
 
             with open(f'{output_path}cluster.inp', 'w') as f:
                 cluster_config.write(f)
-
+        elif MCR_parameters['subset_method'] is False:
+            write_products(mcr_result, output_path, 'mcr_result.smi')
         else:
-            print('Subset method not supported.')
-            sys.exit(1)
+            print("Error: unkown subsampling method, recognised options are: k-means or False")
+            print("Writing out products without subsampling...")
+            write_products(mcr_result, output_path, 'mcr_result.smi')
 
 
 if __name__ == "__main__":

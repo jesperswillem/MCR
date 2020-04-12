@@ -1,6 +1,6 @@
 import unittest, argparse
 from unittest import mock, TestCase  # python 3.3+
-import bin.run_mcr
+import bin.mcr_run
 from MCR import core
 
 
@@ -15,9 +15,9 @@ class TestCoreFunctions(unittest.TestCase):
         self.assertEqual(desired_output, output)
 
     @mock.patch('argparse.ArgumentParser.parse_args',
-                return_value=argparse.Namespace(input_file="test_inputs/test1.inp"))
+                return_value=argparse.Namespace(input_file="test_inputs/test1_non_rxn.inp"))
     def test_parse_input(self, mock_args):
-        settings, reactants, MCR_parameters = bin.run_mcr.parse_input()
+        settings, reactants, MCR_parameters = bin.mcr_run.parse_input()
 
         self.assertEqual(settings["num_processes"], 4)
         self.assertEqual(reactants[0]["include_smarts"], "")
@@ -28,7 +28,7 @@ class TestCoreFunctions(unittest.TestCase):
                 return_value=argparse.Namespace(input_file="does/not/exist/for/sure"))
     def test_parse_input_sanityCheck(self, mock_args):
         with self.assertRaises(FileNotFoundError):
-            bin.run_mcr.parse_input()
+            bin.mcr_run.parse_input()
 
     def test_molbag_to_featurearray(self):
         import dask.bag as db
@@ -43,7 +43,7 @@ class TestCoreFunctions(unittest.TestCase):
 
         with self.subTest(status_code='proper molecules'):
             from rdkit import Chem
-            bag = db.read_text("/Users/florian/Documents/uppMCR/tests/test_data/aldehyde_query.smi", blocksize=16e6)
+            bag = db.read_text("../tests/test_data/aldehyde_query.smi", blocksize=16e6)
             mol_bag = bag.map(lambda x: Chem.MolFromSmiles(x)).filter(lambda x: bool(x))
 
             feature_array = core.molbag_to_featurearray(mol_bag)
@@ -74,9 +74,60 @@ class TestCoreFunctions(unittest.TestCase):
                 "max_heavy_ratoms": i,
                 "wash_molecules": True,
                 "keep_largest_fragment": True
-                }
+            }
             bag = core.construct_query(query, input_bag)
             result.append(bag.count().compute())
 
         self.assertEqual(result, [0, 17, 57])
 
+    def test_execute_mcr(self):
+        from rdkit import Chem
+        reactants_list = [
+            [('O=CC', 1), ('O=CBr', 2)],
+            [('CC(C=O)CC(C)(C)C', 1)]
+        ]
+        reactants_list = [
+            [(Chem.MolFromSmiles(a), b) for a, b in x] for x in reactants_list
+        ]
+
+        scaffold = ['C([*:2])C1[C@H]([*:1])NC(=O)NC=1C']
+        reacting_groups = ['[CX3H]=O', '[CH2][CX3]([CH3])(=O)']
+
+        print(core.execute_mcr(reactants_list, reacting_groups, scaffolds=scaffold)[0].compute())
+
+    def test_execute_mcr_rxn(self):
+        from rdkit import Chem
+        from MCR import chem_functions, helpers
+        test_reactants = [
+            [('CC(C)OC(=O)C(C)(=O)', 1)],
+            [('c1cocc1C(=O)', 1), ('c1ccsc1C(=O)', 2), ('O=CCC(F)C=O', 3)],
+            [('NC(=O)N', 1), ('NC(=S)N', 2)]
+        ]
+        expected_results = [
+            ['CC1=C(OC(C)C)[C@H](c2ccoc2)NC(=O)N1', [1, 1, 1]],
+            ['CC1=C(OC(C)C)[C@H](c2ccoc2)NC(=S)N1', [1, 1, 2]],
+            ['CC1=C(OC(C)C)[C@H](c2cccs2)NC(=O)N1', [1, 2, 1]],
+            ['CC1=C(OC(C)C)[C@H](c2cccs2)NC(=S)N1', [1, 2, 2]],
+            ['CC1=C(OC(C)C)[C@H](CC(F)C=O)NC(=O)N1', [1, 3, 1]],
+            ['CC1=C(OC(C)C)[C@H](C(F)CC=O)NC(=O)N1', [1, 3, 1]],
+            ['CC1=C(OC(C)C)[C@H](CC(F)C=O)NC(=S)N1', [1, 3, 2]],
+            ['CC1=C(OC(C)C)[C@H](C(F)CC=O)NC(=S)N1', [1, 3, 2]]
+        ]
+
+
+        test_reactants = [
+            [[Chem.MolFromSmiles(a), b] for a, b in x] for x in test_reactants
+        ]
+
+        scaffold = '[*:2]C1[C@H]([#6:1])[N]C(=[O,S:3])[N]C=1C'
+        reactants = ['O=[CX3]([CH3])C[*:2]', '[#6:1][CX3H1]=O', '[N]C(=[O,S:3])[N]']
+        # reactants = '.'.join(reactants)
+        # reaction = f"{reactants}>>{scaffold}"
+
+        unformatted_results = core.execute_mcr_rxn(test_reactants, reactants, [scaffold])[0].compute()
+        results = [[Chem.MolToSmiles(i[0]), i[1]] for i in unformatted_results]
+
+        self.assertEqual(expected_results, results)
+
+    # def test_construct_cluster(self):
+    #     self.fail()

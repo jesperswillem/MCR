@@ -27,8 +27,13 @@ def cluster_writer(prefix, partition_index, data):
         clusters[i[0]].append(i[1])
     for key, values in clusters.items():
         with open(f"{prefix}_cluster_{key}.{partition_index}.txt", 'w') as f:
+
             values = ['\t'.join(map(str, value)) for value in values]
             f.writelines(map(lambda x: f"{x}\n", values))
+
+
+def store_np_matrix(matrix, path):
+    np.savetxt(path, matrix, delimiter='/t')
 
 
 def backup_dir(directory):
@@ -42,6 +47,9 @@ def backup_dir(directory):
     -------
     backup_dir: str OR None
     """
+    if type(directory) is str:
+        if directory.endswith('/'):
+            directory = directory[:-1]
     target_path = Path(directory)
     if target_path.exists():
         t = time.localtime(target_path.stat().st_ctime)
@@ -138,7 +146,7 @@ def closest_node(node, nodes):
 
 def match_node(node, nodes):
     ''' Computes closest point to node in nodes array
-
+    #TODO make this actually different form closest_node.
     Parameters
     ----------
     node: numpy.array

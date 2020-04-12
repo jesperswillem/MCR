@@ -8,7 +8,7 @@ output_folder = ../tests/delete_testdir_1
 
 [reactant01]
 from_file = ./test_data/aldehyde_query.smi
-reacting_group = [CX3H]=O
+reacting_group = [*:1][CX3H]=O
 exclude_smarts = [CX3H](=O)[N;n]
 max_heavy_Ratoms = 15
 wash_molecules = true

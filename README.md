@@ -41,7 +41,7 @@ construct_clusters.py
 mcr_plot.py
 run_mcr.py
 ``` 
-
+If these do not show up in your path try reloading your conda environment after installation.
 
 #### Testing installation
 

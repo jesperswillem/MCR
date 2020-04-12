@@ -1,10 +1,13 @@
 import argparse
 import glob
+import sys
 from unittest import TestCase
 from unittest import mock  # python 3.3+
 
-import bin.run_mcr
-import bin.construct_clusters
+sys.path.append('../')
+import bin.mcr_run
+import bin.mcr_reconstruct_clusters
+import bin.mcr_plot
 
 
 class TestFunction(TestCase):
@@ -26,23 +29,20 @@ class TestFunction(TestCase):
     @mock.patch('argparse.ArgumentParser.parse_args',
                 return_value=argparse.Namespace(input_file="test_inputs/test1.inp"))
     def test_main1(self, mock_args):
-        bin.run_mcr.main()
+        bin.mcr_run.main()
 
     @mock.patch('argparse.ArgumentParser.parse_args',
                 return_value=argparse.Namespace(input_file="test_inputs/test2.inp"))
     def test_main2(self, mock_args):
-        print('hallo')
-        bin.run_mcr.main()
-        print("check")
+        bin.mcr_run.main()
 
     @mock.patch('argparse.ArgumentParser.parse_args',
                 return_value=argparse.Namespace(input_file="test_inputs/test3.inp"))
     def test_main3(self, mock_args):
-        bin.run_mcr.main()
+        bin.mcr_run.main()
 
     @mock.patch('argparse.ArgumentParser.parse_args',
                 return_value=argparse.Namespace(input_file="test_data/test_clusters/cluster.inp", clusters=[1, 2]))
     def test_main4(self, mock_args):
-        bin.construct_clusters.main()
-        self.to_delete_files += glob.glob('test_data/test_clusters/constructed_MCR_cluster_*.smi')
-
+        bin.mcr_reconstruct_clusters.main()
+        # self.to_delete_files += glob.glob('test_data/test_clusters/constructed_MCR_cluster_*.smi')
