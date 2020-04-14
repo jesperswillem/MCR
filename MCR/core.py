@@ -23,6 +23,7 @@ import dask.bag as db
 import dask.array as da
 from dask.diagnostics import ProgressBar
 import numpy as np
+import copy
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
@@ -43,6 +44,15 @@ def parse_input_field(input):
 
     # split on commas outside of brackets
     split = re.split(r',\s*(?=[^)]*(?:\(|$))', input)
+    # Hot fix for square brackets with a comma inside.
+    for inum, value in enumerate(split):
+        if '[' in value and not ']' in value:
+            if ']' not in split[inum+1]:
+                raise ValueError(f'No closing bracket found in {input}')
+            else:
+                split[inum] = value + ',' + split[inum+1]
+                split.pop(inum + 1)
+
     if len(split) > 1:
         result = []
         for entry in split:
@@ -151,14 +161,14 @@ def construct_query(query, bag):
             query['include_smarts'] = [query['include_smarts']]
         for include_smarts in query['include_smarts']:
             include_group = Chem.MolFromSmarts(include_smarts)
-            bag = bag.filter(lambda x: x.HasSubstructMatch(include_group))
+            bag = bag.filter(lambda x, smarts=copy.deepcopy(include_group): x.HasSubstructMatch(smarts))
 
     if query['exclude_smarts']:
         if type(query['exclude_smarts']) != list:
             query['exclude_smarts'] = [query['exclude_smarts']]
         for exclude_smarts in query['exclude_smarts']:
             exclude_group = Chem.MolFromSmarts(exclude_smarts)
-            bag = bag.filter(lambda x: not x.HasSubstructMatch(exclude_group))
+            bag = bag.filter(lambda x, smarts=copy.deepcopy(exclude_group): not x.HasSubstructMatch(smarts))
 
     return bag
 
@@ -166,8 +176,11 @@ def construct_query(query, bag):
 def execute_queries(settings, query_parameters, output_path):
     # TOPOLISH: test and doc
     # Create dask delayed object, make rdkit mol object if possible.
-    input_bag = db.read_text(settings['reactant_db'], blocksize=settings["partition_size"])
-    input_bag = input_bag.map(lambda x: Chem.MolFromSmiles(x)).remove(lambda x: x is None)
+    if settings['reactant_db']:
+        input_bag = db.read_text(settings['reactant_db'], blocksize=settings["partition_size"])
+        input_bag = input_bag.map(lambda x: Chem.MolFromSmiles(x)).remove(lambda x: x is None)
+    else:
+        print('Warning no reactant database defined, this only works if all reactants are loaded from sequence or file.')
 
     # Creating a list of product bags and the compute section.
     reactant_bags = []
@@ -272,7 +285,7 @@ def execute_mcr_rxn(reactants_lists, reacting_groups, scaffolds):
     # Join reactants by dots to produce a rxn reactant later.
     reactants_groups = '.'.join(reacting_groups)
 
-    # Loop over scaffolds and perform reactions #TODO join products of multiple scaffolds
+    # Loop over scaffolds and perform reactions
     for scaffold in scaffolds:
         rxn_reaction = f"{reactants_groups}>>{scaffold}"
         reactant_product = reactant_product.map(my_map)

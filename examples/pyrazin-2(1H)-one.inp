@@ -1,0 +1,26 @@
+# input file single step biginelli reaction.
+[general]
+partition_size = 2.5MB
+output_folder = ./single_step_ugi_from_sequence
+
+[reactant01]
+reacting_group = [NX3H2:1]
+from_sequence = Nc1ccccc1, NCCCCC, NCCN(C)C
+
+[reactant02]
+reacting_group = [CH3][CX4]([CH3])([CH3])[OX2][CX3](=O)[NX3H1][CX4:2][CX3]([OX2H1])=O
+from_sequence = CC(NC(=O)OC(C)(C)C)C(=O)O, C(NC(=O)OC(C)(C)C)(C(=O)O)[H], C(NC(=O)OC(C)(C)C)(C(=O)O)C(C)C, C(NC(=O)OC(C)(C)C)(C(=O)O)CC(C)C, C(NC(=O)OC(C)(C)C)(C(=O)O)CCSC, C(NC(=O)OC(C)(C)C)(C(=O)O)c1ccccc1, C(NC(=O)OC(C)(C)C)(C(=O)O)CCC(=O)Oc1ccccc1
+
+[reactant03]
+reacting_group = O=[CX3H1][CX3:3](=O)
+from_sequence = C(C=O)(=O)C1=CC=C(C=C1)O, C(C=O)(=O)C1=CC=C(C=C1)OC
+
+[reactant04]
+reacting_group = [C-]#[N+][*:4]
+from_sequence = [C-]#[N+]C1CCCCC1, [C-]#[N+]C(C)(C)C
+
+[MCR]
+scaffold = [C:3]1(=C([N:1](C([C:2](=N1))=O))C([N]([H])[*:4])=O)
+subset_method = False
+max_heavy_ratoms = 40 !default is 30
+

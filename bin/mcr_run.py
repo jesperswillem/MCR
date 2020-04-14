@@ -142,7 +142,7 @@ def parse_input():
         "subset_method": None,
         "subset_size": 1e4,
         "training_sample": 1e5,
-        "max_heavy_ratoms": 30,
+        "max_heavy_ratoms": 35,
         "remove_pains": False,
         "remove_non_lipinski": False,
     }
@@ -246,16 +246,20 @@ def main():
         # Old manual reaction function
         # mcr_result, expected_total = core.execute_mcr(reactants_lists, reacting_groups, MCR_parameters['scaffold'])
 
-        # # rdkit implementation
+        # rdkit implementation
         mcr_result, expected_total = core.execute_mcr_rxn(reactants_lists, reacting_groups, MCR_parameters['scaffold'])
 
-        # TODO: max heavy atoms.
+        if type(MCR_parameters['max_heavy_ratoms']) == int:
+            mcr_result = mcr_result.filter(
+                lambda x, y=copy.deepcopy(MCR_parameters['max_heavy_ratoms']): x[0].GetNumHeavyAtoms() <= y)
+        else:
+            raise ValueError
 
-        # TODO: Lipinski
+        if MCR_parameters["remove_non_lipinski"]:
+            mcr_result = mcr_result.filter(lambda x: chem_functions.filter_lipinski(x[0]))
 
-        # TODO: Lipinski subcomponents
-
-        # TODO: pains filters.
+        if MCR_parameters["remove_pains"]:
+            mcr_result = mcr_result.filter(lambda x: chem_functions.filter_pains(x[0]))
 
         # Perform clustering if requested
         print(MCR_parameters['subset_method'])

@@ -7,10 +7,14 @@ from collections import defaultdict
 
 import numpy as np
 
-from rdkit import Chem, DataStructs
+from rdkit import Chem
+from rdkit import DataStructs
 from rdkit.Chem import AllChem
+from rdkit.Chem import Lipinski
+from rdkit.Chem import Descriptors
 from rdkit.Chem.rdchem import EditableMol
 from rdkit.Chem.SaltRemover import SaltRemover
+
 
 
 # decharge reactions taken from rdkit manual
@@ -349,3 +353,47 @@ def weld_r_groups(mol):
 
     final_mol = Chem.RemoveHs(final_mol)
     return final_mol
+
+def filter_lipinski(mol):
+    """Takes a rdkit mol object and returns true if it conforms to the lipinski rules.
+
+    Parameters
+    ----------
+    mol: rdkit:mol
+
+    Returns
+    -------
+    boolean
+    """
+    if Lipinski.NumHAcceptors(mol) > 10:
+        return False
+    elif Lipinski.NumHDonors(mol) > 5:
+        return False
+    elif Descriptors.MolWt(mol) > 500:
+        return False
+    elif Descriptors.MolLogP(mol) > 5:
+        return False
+
+    return True
+
+
+def filter_pains(mol, pains):
+    """Takes a rdkit mol object and returns true if it contains no pains.
+
+    Parameters
+    ----------
+    mol: rdkit:mol
+
+    Returns
+    -------
+    boolean
+    """
+    hits = []
+    for name, pain in pains:
+        if mol.HasSubstructMatch(pain):
+            hits.append(name)
+    if hits:
+        # print(hits)
+        return False
+    else:
+        return True

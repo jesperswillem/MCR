@@ -1,0 +1,47 @@
+[general]
+num_processes = 16
+partition_size = 2.5MB
+reactant_db = tests/test_data/test_db_6.1.smi
+log_file = MCR.log
+output_folder = examples/single_step_biginelli_clustered
+
+[reactant00]
+from_file = None
+from_sequence = None
+reacting_group = [*:1][CX3H]=O
+include_smarts = None
+exclude_smarts = ['[CX3H](=O)[N;n]', '[Br,I]', '[CX2]#[NX1]']
+max_heavy_ratoms = 15
+wash_molecules = true
+keep_largest_fragment = False
+
+[reactant01]
+from_file = None
+from_sequence = None
+reacting_group = [*:2][CH2][CX3]([CH3])(=O)
+include_smarts = None
+exclude_smarts = ['[Br,I]', '[CX2]#[NX1]', '[S;O]=[C]([NH2])[NH2]', '[*:1][CX3H]=O']
+max_heavy_ratoms = 10
+wash_molecules = true
+keep_largest_fragment = False
+
+[reactant02]
+from_file = None
+from_sequence = ['N(C(N([H])[H])=[S])([H])[H]', 'N(C(N([H])[H])=[O])([H])[H]']
+reacting_group = [C:3]([NH2])[NH2]
+include_smarts = None
+exclude_smarts = None
+max_heavy_ratoms = 10
+wash_molecules = true
+keep_largest_fragment = False
+
+[MCR]
+perform_mcr = True
+scaffold = ['[*:2]C1[C@H]([*:1])N[C:3]NC=1C']
+subset_method = k-means
+subset_size = 25
+training_sample = 200
+max_heavy_ratoms = 30
+remove_pains = False
+remove_non_lipinski = False
+

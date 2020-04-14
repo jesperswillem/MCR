@@ -14,6 +14,14 @@ class TestCoreFunctions(unittest.TestCase):
 
         self.assertEqual(desired_output, output)
 
+    def test_parse_input_field_2(self):
+        test_input = "[Br,I], N(O)=O"
+        desired_output = ["[Br,I]", "N(O)=O"]
+
+        output = core.parse_input_field(test_input)
+
+        self.assertEqual(desired_output, output)
+
     @mock.patch('argparse.ArgumentParser.parse_args',
                 return_value=argparse.Namespace(input_file="test_inputs/test1_non_rxn.inp"))
     def test_parse_input(self, mock_args):
@@ -80,6 +88,53 @@ class TestCoreFunctions(unittest.TestCase):
 
         self.assertEqual(result, [0, 17, 57])
 
+    def test_exclude_smarts(self):
+        import dask.bag as db
+        from rdkit import Chem
+
+        input_file = 'test_data/aldehyde_query.smi'
+        input_bag = db.read_text(input_file).map(lambda x: Chem.MolFromSmiles(x)).filter(lambda x: x != None)
+
+        result = []
+
+        query = {
+            "reacting_group": None,
+            "include_smarts": None,
+            "exclude_smarts": ['[CX3H](O)[N;n]', '[Br,I]', '[CX2]#[NX1]'],
+            "max_heavy_ratoms": 10,
+            "wash_molecules": True,
+            "keep_largest_fragment": True
+        }
+        bag = core.construct_query(query, input_bag)
+        bag = bag.map(lambda x: Chem.MolToSmiles(x))
+
+        for smiles in bag.compute():
+            self.assertNotIn('Br', smiles)
+
+    def test_exclude_smarts2(self):
+        import dask.bag as db
+        from rdkit import Chem
+
+        input_file = 'test_data/aldehyde_query.smi'
+        input_bag = db.read_text(input_file).map(lambda x: Chem.MolFromSmiles(x)).filter(lambda x: x != None)
+
+        result = []
+
+        query = {
+            "reacting_group": None,
+            "include_smarts": None,
+            "exclude_smarts": '[Br,I]',
+            "max_heavy_ratoms": 10,
+            "wash_molecules": True,
+            "keep_largest_fragment": True
+        }
+        bag = core.construct_query(query, input_bag)
+        bag = bag.map(lambda x: Chem.MolToSmiles(x))
+
+        for smiles in bag.compute():
+            self.assertNotIn('Br', smiles)
+
+
     def test_execute_mcr(self):
         from rdkit import Chem
         reactants_list = [
@@ -129,5 +184,3 @@ class TestCoreFunctions(unittest.TestCase):
 
         self.assertEqual(expected_results, results)
 
-    # def test_construct_cluster(self):
-    #     self.fail()

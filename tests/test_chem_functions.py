@@ -81,8 +81,8 @@ class TestChemFunctions(TestCase):
         mols = [Chem.MolFromSmiles(x) for x in test_input]
         features = chem_functions.generate_fingerprints_iter(mols)
 
-        #print(features.shape)
-        #TOPOLISH
+        # print(features.shape)
+        # TOPOLISH
 
     def test_make_smiles_list(self):
         test_mol = Chem.MolFromSmiles('CC1=C(CC=O)[C@@H](C=O)NC(=O)N1')
@@ -106,3 +106,40 @@ class TestChemFunctions(TestCase):
         result = chem_functions.join_fragments(sequence, scaffold)
 
         self.assertEqual(Chem.MolToSmiles(result[0]), "CC(CC(C)(C)C)[*:1].CC1=C(C[*:2])[C@H]([*:1])NC(=O)N1.O=C[*:2]")
+
+    def test_lipinski(self):
+        test_smiles = [
+            'CC1=CN=C(C(=C1OC)C)CS(=O)C2=NC3=C(N2)C=C(C=C3)OC',
+            'CC1(CCC(=C(C1)c2ccc(cc2)Cl)CN3CCN(CC3)c4ccc(c(c4)'
+            'c5cc6cc[nH]c6nc5)C(=O)NS(=O)(=O)c7ccc(c(c7)[N+](=O)[O-])NCC8CCOCC8)C'
+        ]
+        expected_results = [
+            True,
+            False
+        ]
+
+        test_mols = [Chem.MolFromSmiles(smiles) for smiles in test_smiles]
+        result = [chem_functions.filter_lipinski(mol) for mol in test_mols]
+
+        self.assertEqual(result, expected_results)
+
+    def test_find_pains(self):
+        from MCR.pains import pains_from_smarts
+        pains = pains_from_smarts()
+        test_smiles = [
+            'C1=CC(=C(C=C1CCN)O)O',
+            'O=C2C=CC(C1=CC=CC=C12)=O',
+            'ClC=1C(=O)C(\Cl)=C(\Cl)C(=O)C=1Cl',
+            'n2c1c(ncnc1n(c2)[C@@H]3O[C@@H]([C@@H](O)[C@H]3O)CO)N'
+        ]
+        expected_results = [
+            False,
+            False,
+            False,
+            True
+        ]
+
+        test_mols = [Chem.MolFromSmiles(smiles) for smiles in test_smiles]
+        result = [chem_functions.filter_pains(test_mol, pains) for test_mol in test_mols]
+
+        self.assertEqual(result, expected_results)

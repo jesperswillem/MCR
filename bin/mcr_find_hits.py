@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
-import os
-import sqlite3
+import sys
 import configparser
 import numpy as np
 
@@ -51,15 +50,31 @@ def parse_inputs():
     parser.add_argument('--activity-cutoff',
                         dest="activity_cutoff",
                         default=6.5,
+                        type=float,
                         help="Cut-off for bioactivity level, for ChEMBL 6.5 seems to be a reasonable number."
                         )
 
     parser.add_argument('--num_clusters',
                         dest='num_clusters',
+                        type=int,
                         default=10,
                         help='Number of clusters close to active chemical matter to unpack.')
 
     options = parser.parse_args()
+
+    if not options.cluster_dir:
+        print(">>> A cluster dir must be specified.")
+        parser.print_help()
+        sys.exit(1)
+
+    if options.cluster_dir[-1] is not '/':
+        options.cluster_dir += '/'
+
+    if not Path(options.cluster_dir + 'centroids.txt').exists():
+        print(">>> No centroids.txt file found in folder, are you sure this is a cluster folder generated with the mcr"
+              "package?.")
+        parser.print_help()
+        sys.exit(1)
 
     return options
 
@@ -75,7 +90,7 @@ def main():
     # Query ChEMBL and calculate arrays.
     if args.database and args.target_id:
         print(f'Querying {args.database} for target: {args.target_id}')
-        reference_activities.append(get_chembl_activies(args.database, [args.target_id]))
+        reference_activities += get_chembl_activies(args.database, [args.target_id])
 
         with open(args.cluster_dir + f'chembl_query.tsv', 'w') as out_file:
             for activity in reference_activities:
@@ -85,12 +100,14 @@ def main():
         activity_tuple = namedtuple('activity_tuple',
                                     'target_id, target_name, compound_id, canonical_smiles, standard_type, standard_relation, pchembl_value, standard_units')
 
-        with open(args.cluster_dir + args.activity_file, 'r') as in_file:
+        with open(args.activity_file, 'r') as in_file:
             for line in in_file:
                 new_activity = line.strip('\n').split('\t')
                 new_activity[6] = float(new_activity[6])
                 new_activity = activity_tuple(*new_activity)
                 reference_activities.append(new_activity)
+
+    print(f'Loaded a total of {len(reference_activities)} activities and {centroids.shape[0]} clusters\n')
 
     reference_activities = [act for act in reference_activities if act.pchembl_value > args.activity_cutoff]
 
@@ -104,6 +121,7 @@ def main():
     reference_mols = [chem_functions.standardize_mol(mol) for mol in reference_mols]
     reference_matrix = chem_functions.generate_fingerprints_iter(reference_mols)
 
+    print(f'Searching for closest clusters')
     similar_centroid_matches = {i:(0.0, None, None) for i in range(centroids.shape[0])}
     for reference_index, reference_fp in enumerate(reference_matrix):
         for centroid_index, centroid in enumerate(centroids):
@@ -197,8 +215,8 @@ def main():
         best_matches.append(new_match)
 
     # Finally write out results
-
     # First make sure we have a directory to write to
+    print(f'\nNow writing out results')
     results_dir = f"{args.cluster_dir}/match_result_{str(args.target_id)}/"
     backup = helpers.backup_dir(results_dir)
 
@@ -224,6 +242,7 @@ def main():
 
     Draw.MolsToGridImage(mols=match_grid, molsPerRow=5, legends=legends).save(results_dir + 'matches_grid_imagae.png')
 
+    print(f'\nDone, results have been writen to {results_dir}')
 
 if __name__ == '__main__':
     main()

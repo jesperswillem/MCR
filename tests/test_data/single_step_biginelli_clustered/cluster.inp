@@ -1,0 +1,10 @@
+[cluster_info]
+num_reactant_files = 3
+file0 = ./reactant00.smi
+reacting_group0 = [*:1][CX3H]=O
+file1 = ./reactant01.smi
+reacting_group1 = [*:2][CH2][CX3]([CH3])(=O)
+file2 = ./reactant02.smi
+reacting_group2 = [C:3]([NH2])[NH2]
+scaffold = [*:2]C1[C@H]([*:1])N[C:3]NC=1C
+
