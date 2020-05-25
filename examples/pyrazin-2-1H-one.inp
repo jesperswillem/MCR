@@ -1,7 +1,7 @@
-# input file single step biginelli reaction.
+# input file pyrazin-2(1H)-one from ugi reaction
 [general]
 partition_size = 2.5MB
-output_folder = ./single_step_ugi_from_sequence
+output_folder = ./pyrazin-2-1H-one_from_sequence
 
 [reactant01]
 reacting_group = [NX3H2:1]

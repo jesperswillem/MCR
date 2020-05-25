@@ -41,7 +41,7 @@ def startup_report(settings, query_parameters, MCR_parameters):
     Returns
     -------
     """
-    print("---------Used-settings---------\n")
+    print("------------------Used-settings------------------\n")
     settings_print(settings)
 
     for i, parameters in enumerate(query_parameters):
@@ -53,7 +53,7 @@ def startup_report(settings, query_parameters, MCR_parameters):
 
         settings_print(MCR_parameters)
 
-    print("\n------------------------------\n")
+    print("\n------------------------------------------------\n")
 
 
 def parse_input():
@@ -262,8 +262,8 @@ def main():
             mcr_result = mcr_result.filter(lambda x: chem_functions.filter_pains(x[0]))
 
         # Perform clustering if requested
-        print(MCR_parameters['subset_method'])
         if MCR_parameters['subset_method'] == "k-means":
+            print('Subsampling using k-means clustering.')
             # Create training set to find for KMeans
             sample_prob = MCR_parameters["training_sample"]/expected_total
             centroids, training_sample = core.make_kmeans_clusters(mcr_result, sample_prob)
@@ -308,10 +308,10 @@ def main():
 
             with open(f'{output_path}cluster.inp', 'w') as f:
                 cluster_config.write(f)
-        elif MCR_parameters['subset_method'] is False:
+        elif MCR_parameters['subset_method'].lower() in ['false', 'no', 'not', '0']:
             write_products(mcr_result, output_path, 'mcr_result.smi')
         else:
-            print("Error: unkown subsampling method, recognised options are: k-means or False")
+            print(f"Error: unkown subsampling method: {MCR_parameters['subset_method']}, recognised options are: k-means or False")
             print("Writing out products without subsampling...")
             write_products(mcr_result, output_path, 'mcr_result.smi')
 

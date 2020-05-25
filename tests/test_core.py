@@ -1,5 +1,7 @@
 import unittest, argparse
 from unittest import mock, TestCase  # python 3.3+
+import sys
+sys.path.append('../')
 import bin.mcr_run
 from MCR import core
 

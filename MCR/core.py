@@ -197,7 +197,7 @@ def execute_queries(settings, query_parameters, output_path):
         reactant_bags.append(bag)
 
     # Compute and enumerate.
-    print('Querying database and/or reading input files...')
+    print('Querying database and/or reading input files...\n')
     with ProgressBar():
         reactants_lists = dask.compute(*reactant_bags)
         # reactants_lists = [common.zfill_enum(i, 6) for i in reactants_lists]
